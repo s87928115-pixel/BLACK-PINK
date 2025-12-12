@@ -410,18 +410,107 @@
             const [activeDayIdx, setActiveDayIdx] = useState(0);
             const activeDay = data.itinerary[activeDayIdx];
 
+            // BLACKPINK Default Cover
+            const DEFAULT_COVER = "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600' viewBox='0 0 800 600'%3E%3Crect width='800' height='600' fill='%23121212'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial, sans-serif' font-weight='900' font-size='120' fill='%23FF69B4' letter-spacing='8'%3EBLACKPINK%3C/text%3E%3C/svg%3E";
+            
+            const [coverImage, setCoverImage] = useState(DEFAULT_COVER);
+            const fileInputRef = useRef(null);
+
+            const updateAppIcons = (imageUrl) => {
+                const appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+                if (appleIcon) appleIcon.href = imageUrl;
+
+                let favicon = document.querySelector('link[rel="icon"]') || document.querySelector('link[rel="shortcut icon"]');
+                if (!favicon) {
+                    favicon = document.createElement('link');
+                    favicon.setAttribute('rel', 'icon');
+                    document.head.appendChild(favicon);
+                }
+                favicon.href = imageUrl;
+            };
+
+            useEffect(() => {
+                const savedCover = localStorage.getItem('trip_cover_image');
+                if (savedCover) {
+                    setCoverImage(savedCover);
+                    updateAppIcons(savedCover);
+                } else {
+                    updateAppIcons(DEFAULT_COVER);
+                }
+            }, []);
+
+            const handleImageUpload = (e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const base64String = reader.result;
+                        try {
+                            localStorage.setItem('trip_cover_image', base64String);
+                            setCoverImage(base64String);
+                            updateAppIcons(base64String);
+                        } catch (error) {
+                            alert("圖片太大了，無法儲存！");
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const triggerUpload = () => {
+                fileInputRef.current?.click();
+            };
+
+            const resetCover = (e) => {
+                e.stopPropagation();
+                if(window.confirm('確定要還原成預設封面嗎？')) {
+                    localStorage.removeItem('trip_cover_image');
+                    setCoverImage(DEFAULT_COVER);
+                    updateAppIcons(DEFAULT_COVER);
+                }
+            };
+
             return (
                 <div className="space-y-6 pb-6">
                     {/* Header Image Area */}
-                    <div className="relative h-80 bg-bp-dark rounded-b-[2.5rem] overflow-hidden border-b-4 border-bp-pink shadow-2xl">
+                    <div className="relative h-80 bg-bp-dark rounded-b-[2.5rem] overflow-hidden border-b-4 border-bp-pink shadow-2xl group">
                         <img 
-                            src="https://images.unsplash.com/photo-1551698618-1dfe5d97d256?q=80&w=2940&auto=format&fit=crop" 
+                            src={coverImage} 
                             alt="Tokyo Trip Cover" 
-                            className="w-full h-full object-cover opacity-90"
+                            className="w-full h-full object-cover opacity-90 transition-transform duration-700 group-hover:scale-105"
                         />
                         
+                        {/* Image Edit Controls */}
+                        <div className="absolute top-4 right-4 flex flex-col items-end gap-2 z-30">
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                onChange={handleImageUpload} 
+                                accept="image/*" 
+                                className="hidden" 
+                            />
+                            
+                            <button 
+                                onClick={triggerUpload}
+                                className="bg-black/60 hover:bg-bp-pink hover:text-black text-white px-4 py-2 rounded-full backdrop-blur-md border border-white/30 flex items-center gap-2 transition-all duration-300 shadow-lg active:scale-95 group"
+                            >
+                                <Icon name="camera" />
+                                <span className="font-bold text-sm tracking-wide">更換封面</span>
+                            </button>
+
+                            {coverImage !== DEFAULT_COVER && (
+                                <button 
+                                    onClick={resetCover}
+                                    className="bg-red-600/80 hover:bg-red-500 text-white px-3 py-1.5 rounded-full backdrop-blur-md border border-white/20 flex items-center gap-1 transition-all text-xs shadow-md active:scale-95"
+                                >
+                                    <Icon name="rotate-left" />
+                                    <span>還原</span>
+                                </button>
+                            )}
+                        </div>
+
                         {/* Gradient Overlay for Text Readability */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-bp-black/90 via-bp-black/20 to-transparent flex flex-col items-center justify-end pb-12">
+                        <div className="absolute inset-0 bg-gradient-to-t from-bp-black/90 via-bp-black/20 to-transparent flex flex-col items-center justify-end pb-12 pointer-events-none">
                             <h1 className="text-5xl font-heading text-bp-pink drop-shadow-[0_2px_10px_rgba(255,105,180,0.6)] tracking-widest transform -rotate-2">TOKYO</h1>
                             <div className="flex items-center gap-3 mt-2">
                                 <span className="h-px w-8 bg-white/50"></span>
