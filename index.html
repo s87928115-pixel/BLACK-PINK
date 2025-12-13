@@ -21,8 +21,7 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- React & Babel Standalone (if needed for dev without build step, but assuming index.tsx handles it) -->
-    <!-- We keep these just in case the environment relies on global React -->
+    <!-- React & Babel -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -95,18 +94,790 @@
             padding-bottom: env(safe-area-inset-bottom);
         }
     </style>
-    <script type="importmap">
-    {
-      "imports": {
-        "react/": "https://esm.sh/react@^19.2.3/",
-        "react": "https://esm.sh/react@^19.2.3",
-        "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
-      }
-    }
-    </script>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+  }
+}
+</script>
 </head>
 <body>
     <div id="root"></div>
-    <script type="module" src="./index.tsx"></script>
+
+    <script type="text/babel" data-presets="typescript,react">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- TYPES ---
+        interface Event {
+            time: string;
+            title: string;
+            desc?: string;
+            address?: string;
+            type?: 'food' | 'transport' | 'highlight' | 'default';
+            important?: boolean;
+        }
+
+        interface ItineraryDay {
+            day: string;
+            date: string;
+            title: string;
+            events: Event[];
+        }
+
+        interface Item {
+            id: number;
+            area: string;
+            name: string;
+            address: string;
+        }
+
+        interface CheckList {
+            text: string;
+            checked: boolean;
+        }
+
+        interface CouponItem {
+            id: number;
+            type: 'text' | 'image';
+            content: string;
+            timestamp: number;
+        }
+
+        interface ListsData {
+            essentials: CheckList[];
+            shopping: CheckList[];
+            memo: string;
+            coupons: CouponItem[];
+        }
+
+        interface InfoData {
+            qrImage: string | null;
+            couponImage: string | null;
+        }
+
+        interface InitialData {
+            itinerary: ItineraryDay[];
+            food: Item[];
+            play: Item[];
+            shop: Item[];
+            lists: ListsData;
+            info: InfoData;
+        }
+
+        // --- CONSTANTS ---
+        const INITIAL_DATA: InitialData = {
+            itinerary: [
+                {
+                    day: "DAY 1", date: "1/16 (四)", title: "出發 & BLACKPINK 演唱會",
+                    events: [
+                        { time: "02:25", title: "樂桃 MM620 起飛", desc: "桃園機場 T1 -> 成田 T1 (06:30抵達)", important: false },
+                        { time: "07:37", title: "搭乘 NEX 往東京", desc: "或 8:12, 8:49 發車。機場換票：JR東日本旅行服務中心", important: false },
+                        { time: "10:00", title: "飯店寄放行李", desc: "三井花園飯店日本橋普米爾", address: "東京都中央區日本橋室町3-4-4" },
+                        { time: "16:30", title: "BLACKPINK 演唱會", desc: "地點：東京巨蛋 (Tokyo Dome)", important: true },
+                        { time: "20:00", title: "晚餐推薦", desc: "Food清單選一 (建議: 銀座/日本橋周邊)", type: "food" }
+                    ]
+                },
+                {
+                    day: "DAY 2", date: "1/17 (五)", title: "富士山網紅景點一日遊",
+                    events: [
+                        { time: "08:00", title: "集合出發", desc: "JR東京站丸之內南口集合", important: true },
+                        { time: "Morning", title: "富士山景點", desc: "天梯小鎮、忍野八海、羅森便利店" },
+                        { time: "Afternoon", title: "河口湖", desc: "自由活動與拍照" },
+                        { time: "Evening", title: "返回東京", desc: "新宿/東京站解散" },
+                        { time: "Dinner", title: "晚餐推薦", desc: "建議: A5和牛燒肉 KIM 或 漢堡排", type: "food" }
+                    ]
+                },
+                {
+                    day: "DAY 3", date: "1/18 (六)", title: "輕井澤購物 & 上野",
+                    events: [
+                        { time: "07:26", title: "北陸新幹線", desc: "上野出發 (或是 7:30, 7:58, 8:18)", important: true },
+                        { time: "All Day", title: "輕井澤 Outlet", desc: "爆買行程" },
+                        { time: "Night", title: "晚餐推薦", desc: "建議: 壽喜燒 或 蟹食放題", type: "food" }
+                    ]
+                },
+                {
+                    day: "DAY 4", date: "1/19 (日)", title: "最後衝刺 & 返台",
+                    events: [
+                        { time: "10:00", title: "Check Out", desc: "行李寄放飯店" },
+                        { time: "Day", title: "市區逛街", desc: "銀座 Uniqlo, GINZA SIX, Onitsuka Tiger" },
+                        { time: "17:00", title: "前往成田機場", desc: "預留時間搭車" },
+                        { time: "20:10", title: "星宇 JX805 起飛", desc: "成田 -> 桃園 (23:20抵達)", important: true },
+                        { time: "23:34", title: "桃捷末班車注意", desc: "A12機場 -> A18高鐵桃園站 (23:55到)", important: true }
+                    ]
+                },
+            ],
+            food: [
+                { id: 1, name: "yellow池袋店 (蛋包飯)", area: "池袋", address: "Tokyo, Toshima City, Higashiikebukuro, 1 Chome−27−5 関口ビル Ｂ号室" },
+                { id: 2, name: "Ginza Brazil (炸豬排三明治)", area: "淺草", address: "Tokyo, Taito City, Asakusa, 1 Chome−28−2 シカゴビル" },
+                { id: 3, name: "Pelican CAFÉ (早午餐)", area: "淺草", address: "Tokyo, Taito City, Kotobuki, 3 Chome−9−11 1階" },
+                { id: 4, name: "Kokochi", area: "世田谷", address: "5 Chome-29-8 Daizawa, Setagaya City, Tokyo" },
+                { id: 5, name: "American Diner Andra (漢堡排)", area: "上野", address: "5 Chome-13-7 Higashiueno, Taito City, Tokyo" },
+                { id: 6, name: "A5 和牛焼肉 KIM", area: "港區", address: "2 Chome-2-2 Shirokane, Minato City, Tokyo" },
+                { id: 7, name: "銀座Sun-mi 香川壽喜燒", area: "銀座", address: "Tokyo, Chuo City, Ginza, 6 Chome−3−9-4 階5階" },
+                { id: 8, name: "Bills銀座", area: "銀座", address: "東京都中央區銀座 2-6-12 Okura House 12F" },
+                { id: 9, name: "蟹食放題 ごっつお", area: "文京區", address: "東京都文京區湯島ライワビル 4F" }
+            ],
+            play: [
+                { id: 101, name: "東京豪德寺 (招財貓)", area: "世田谷", address: "東京都世田谷區豪德寺2-24-7" },
+                { id: 102, name: "東京今戶神社 (戀愛)", area: "淺草", address: "東京都台東區今戶1丁目5-22" },
+                { id: 103, name: "淺草寺雷門", area: "淺草", address: "2 Chome-3-1 Asakusa, Taito City, Tokyo" }
+            ],
+            shop: [
+                { id: 201, name: "Onitsuka Tiger", area: "原宿", address: "Tokyo, Shibuya, Jingumae, 4 Chome−24−14" },
+                { id: 202, name: "Birkenstock", area: "新宿", address: "Tokyo, Shinjuku City, Shinjuku, 3 Chome−33−10 新宿モリエール ビル 1F" },
+                { id: 203, name: "GINZA SIX", area: "銀座", address: "6 Chome-10-1 Ginza, Chuo City, Tokyo" },
+                { id: 204, name: "Uniqlo 銀座旗艦店", area: "銀座", address: "Tokyo, Chuo City, Ginza, 6 Chome−9−5" }
+            ],
+            lists: {
+                essentials: [
+                    { text: "護照 & 護照影本", checked: false },
+                    { text: "身分證 & 影本", checked: false },
+                    { text: "信用卡 & 現金 (日幣)", checked: false },
+                    { text: "VJW QR Code", checked: false },
+                    { text: "充電器/線/行充/萬國插座", checked: false },
+                    { text: "網卡/漫遊開通", checked: false },
+                    { text: "個人藥品 (感冒/暈車/腸胃)", checked: false },
+                    { text: "保養品/隱眼/帽子/墨鏡", checked: false }
+                ],
+                shopping: [
+                    { text: "BLACKPINK 周邊", checked: false },
+                    { text: "藥妝店採購", checked: false }
+                ],
+                memo: "住宿：三井花園飯店日本橋普米爾\n電話：+81 3-3270-1131\n\nJR換票網址：\nhttps://www.jreast.co.jp/e/stations/e1130.html",
+                coupons: []
+            },
+            info: {
+                qrImage: null,
+                couponImage: null
+            }
+        };
+
+        // --- COMPONENTS ---
+
+        // Icon Component
+        const Icon = ({ name, className = '' }) => {
+            return <i className={`fa-solid fa-${name} ${className}`}></i>;
+        };
+
+        // PlanView Component
+        const PlanView = ({ itinerary, onSwitchTab }) => {
+            return (
+                <div className="space-y-8 pb-8">
+                    {itinerary.map((day, idx) => (
+                        <div key={idx} className="relative pl-6 border-l-2 border-bp-brown/50">
+                            <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-bp-pink shadow-neon"></div>
+                            
+                            <h2 className="text-2xl font-black text-bp-pink mb-1 font-serif">{day.day}</h2>
+                            <div className="text-sm text-gray-400 mb-4 font-serif italic tracking-wide">
+                                {day.date} - {day.title}
+                            </div>
+                            
+                            <div className="space-y-4">
+                                {day.events.map((evt, eIdx) => (
+                                    <div 
+                                        key={eIdx} 
+                                        className={`glass-card p-4 rounded-xl ${evt.important ? 'border-l-4 border-l-bp-hot' : ''}`}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <span className="font-bold text-bp-pink w-16 text-sm pt-1">{evt.time}</span>
+                                            <div className="flex-1">
+                                                <h4 className="font-bold text-white text-lg font-serif">{evt.title}</h4>
+                                                <p className="text-gray-400 text-sm mt-1 leading-relaxed">{evt.desc}</p>
+                                                
+                                                <div className="flex flex-wrap gap-2 mt-3">
+                                                    {(evt.address || (evt.desc && (evt.desc.includes('飯店') || evt.desc.includes('巨蛋')))) && (
+                                                        <a 
+                                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(evt.address || evt.desc || '')}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer" 
+                                                            className="inline-flex items-center gap-1 text-xs bg-gray-800 px-3 py-1.5 rounded-full text-bp-pink border border-bp-pink/30 hover:bg-bp-pink hover:text-black transition"
+                                                        >
+                                                            <Icon name="location-arrow" /> 導航
+                                                        </a>
+                                                    )}
+                                                    
+                                                    {evt.type === 'food' && (
+                                                        <button 
+                                                            onClick={() => onSwitchTab('FOOD')}
+                                                            className="inline-flex items-center gap-1 text-xs bg-bp-brown px-3 py-1.5 rounded-full text-white hover:bg-bp-brown/80"
+                                                        >
+                                                            <Icon name="utensils" /> 查看清單
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        // CardList Component
+        const CardList = ({ items, title, onAdd, onDelete }) => {
+            const [showModal, setShowModal] = useState(false);
+            const [newItem, setNewItem] = useState({ name: '', area: '', address: '' });
+
+            const handleSave = () => {
+                if (!newItem.name) return;
+                onAdd({ ...newItem, id: Date.now() });
+                setNewItem({ name: '', area: '', address: '' });
+                setShowModal(false);
+            };
+
+            const sortedItems = [...items].sort((a, b) => a.area.localeCompare(b.area));
+
+            return (
+                <div className="pb-8">
+                    <div className="flex justify-between items-end mb-6 border-b border-gray-800 pb-2">
+                        <h2 className="text-3xl font-black italic text-white font-serif tracking-widest">{title.toUpperCase()}</h2>
+                        <button 
+                            onClick={() => setShowModal(true)} 
+                            className="bg-bp-pink text-black w-8 h-8 rounded-full shadow-neon flex items-center justify-center hover:scale-110 transition active:scale-95"
+                        >
+                            <Icon name="plus" />
+                        </button>
+                    </div>
+
+                    {items.length === 0 && (
+                        <div className="text-center text-gray-500 py-10">尚無資料，請新增。</div>
+                    )}
+
+                    <div className="grid gap-4">
+                        {sortedItems.map((item) => (
+                            <div key={item.id} className="glass-card p-4 rounded-xl relative group">
+                                <div className="absolute top-3 right-3 text-gray-600">
+                                     <button onClick={() => onDelete(item.id)} className="p-2 hover:text-bp-hot transition"><Icon name="trash" /></button>
+                                </div>
+                                <span className="inline-block bg-bp-brown text-white text-[10px] px-2 py-0.5 rounded mb-2 tracking-wider font-bold">
+                                    {item.area}
+                                </span>
+                                <h3 className="text-xl font-bold text-white mb-1 font-serif">{item.name}</h3>
+                                <p className="text-sm text-gray-400 mb-3 line-clamp-2">{item.address}</p>
+                                
+                                <a 
+                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address)}`}
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="block w-full text-center py-2 rounded bg-black/50 text-bp-pink border border-bp-pink/30 hover:bg-bp-pink hover:text-black transition font-bold text-sm"
+                                >
+                                    <Icon name="google" className="fab" /> Google Maps
+                                </a>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Modal */}
+                    {showModal && (
+                        <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4 animate-fadeIn">
+                            <div className="bg-bp-dark border border-bp-pink rounded-xl p-6 w-full max-w-sm relative shadow-neon">
+                                <button onClick={() => setShowModal(false)} className="absolute top-3 right-3 text-gray-400 hover:text-white">
+                                    <Icon name="times" />
+                                </button>
+                                <h3 className="text-xl font-bold text-bp-pink mb-4 font-serif">Add Item</h3>
+                                
+                                <div className="space-y-3">
+                                    <input 
+                                        type="text" 
+                                        placeholder="地點名稱 (Name)" 
+                                        className="w-full bg-black border border-gray-700 rounded p-3 text-white focus:border-bp-pink focus:outline-none"
+                                        value={newItem.name}
+                                        onChange={e => setNewItem({...newItem, name: e.target.value})}
+                                    />
+                                    <input 
+                                        type="text" 
+                                        placeholder="地區 (例如: 銀座)" 
+                                        className="w-full bg-black border border-gray-700 rounded p-3 text-white focus:border-bp-pink focus:outline-none"
+                                        value={newItem.area}
+                                        onChange={e => setNewItem({...newItem, area: e.target.value})}
+                                    />
+                                    <textarea 
+                                        placeholder="地址 (Address)" 
+                                        className="w-full bg-black border border-gray-700 rounded p-3 text-white focus:border-bp-pink focus:outline-none h-24 resize-none"
+                                        value={newItem.address}
+                                        onChange={e => setNewItem({...newItem, address: e.target.value})}
+                                    ></textarea>
+                                </div>
+
+                                <button 
+                                    onClick={handleSave} 
+                                    className="mt-6 w-full py-3 bg-bp-pink text-black font-bold rounded hover:bg-white transition shadow-lg"
+                                >
+                                    確認新增 (SAVE)
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // ListsView Component (Updated with Coupons)
+        const ListsView = ({ initialData }) => {
+            const usePersistentChecklist = (key, initial) => {
+                const [items, setItems] = useState(() => {
+                    try {
+                        const saved = localStorage.getItem(key);
+                        return saved ? JSON.parse(saved) : initial;
+                    } catch { return initial; }
+                });
+
+                const toggle = (idx) => {
+                    const newItems = [...items];
+                    newItems[idx].checked = !newItems[idx].checked;
+                    setItems(newItems);
+                    localStorage.setItem(key, JSON.stringify(newItems));
+                };
+
+                const add = (text) => {
+                    const newItems = [...items, { text, checked: false }];
+                    setItems(newItems);
+                    localStorage.setItem(key, JSON.stringify(newItems));
+                };
+
+                const remove = (idx) => {
+                    const newItems = items.filter((_, i) => i !== idx);
+                    setItems(newItems);
+                    localStorage.setItem(key, JSON.stringify(newItems));
+                };
+
+                return { items, toggle, add, remove };
+            };
+
+            const usePersistentCoupons = (key, initial) => {
+                const [items, setItems] = useState(() => {
+                    try {
+                        const saved = localStorage.getItem(key);
+                        return saved ? JSON.parse(saved) : initial;
+                    } catch { return initial; }
+                });
+
+                const addText = (text) => {
+                    const newItem = { id: Date.now(), type: 'text', content: text, timestamp: Date.now() };
+                    const newItems = [newItem, ...items];
+                    setItems(newItems);
+                    try { localStorage.setItem(key, JSON.stringify(newItems)); } catch(e) { alert('Storage full'); }
+                };
+
+                const addImage = (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const base64 = reader.result;
+                        const newItem = { id: Date.now(), type: 'image', content: base64, timestamp: Date.now() };
+                        const newItems = [newItem, ...items];
+                        setItems(newItems);
+                        try { localStorage.setItem(key, JSON.stringify(newItems)); } catch(e) { alert('Image too large / Storage full'); }
+                    };
+                    reader.readAsDataURL(file);
+                };
+
+                const remove = (id) => {
+                    const newItems = items.filter(i => i.id !== id);
+                    setItems(newItems);
+                    localStorage.setItem(key, JSON.stringify(newItems));
+                };
+
+                return { items, addText, addImage, remove };
+            };
+
+            const { items: essentials, toggle: toggleEss, add: addEss, remove: removeEss } = usePersistentChecklist('bp_essentials', initialData.essentials);
+            const { items: shopping, toggle: toggleShop, add: addShop, remove: removeShop } = usePersistentChecklist('bp_shopping', initialData.shopping);
+            const { items: coupons, addText: addCouponText, addImage: addCouponImage, remove: removeCoupon } = usePersistentCoupons('bp_coupons', initialData.coupons);
+            
+            const [memo, setMemo] = useState(() => localStorage.getItem('bp_memo') || initialData.memo);
+            const [couponInput, setCouponInput] = useState('');
+
+            useEffect(() => {
+                localStorage.setItem('bp_memo', memo);
+            }, [memo]);
+
+            const ChecklistGroup = ({ title, items, onToggle, onAdd, onRemove }) => {
+                const [newItemText, setNewItemText] = useState('');
+                
+                return (
+                    <div className="glass-card p-5 rounded-xl">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold text-bp-pink font-serif">{title}</h3>
+                        </div>
+                        
+                        <div className="flex gap-2 mb-4">
+                            <input 
+                                type="text" 
+                                value={newItemText}
+                                onChange={e => setNewItemText(e.target.value)}
+                                placeholder="Add item..."
+                                className="flex-1 bg-black/50 border border-gray-700 rounded px-3 py-1 text-sm text-white focus:border-bp-pink outline-none"
+                            />
+                            <button 
+                                onClick={() => { if(newItemText) { onAdd(newItemText); setNewItemText(''); } }}
+                                className="bg-gray-700 px-3 py-1 rounded text-white text-xs hover:bg-bp-pink hover:text-black transition"
+                            >
+                                Add
+                            </button>
+                        </div>
+
+                        <div className="space-y-3">
+                            {items.map((item, idx) => (
+                                <label key={idx} className="flex items-center space-x-3 cursor-pointer group">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={item.checked} 
+                                        onChange={() => onToggle(idx)}
+                                        className="appearance-none w-5 h-5 border border-bp-pink rounded checked:bg-bp-pink checked:border-bp-pink relative shrink-0 transition"
+                                    />
+                                    <div className="flex-1 flex justify-between items-center overflow-hidden">
+                                        <span className={`truncate text-white ${item.checked ? 'line-through text-gray-500' : ''}`}>{item.text}</span>
+                                        <button onClick={(e) => { e.preventDefault(); onRemove(idx); }} className="text-gray-600 hover:text-red-500 ml-2 px-2"><Icon name="times" /></button>
+                                    </div>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                );
+            };
+
+            const linkify = (text) => {
+                const urlRegex = /(https?:\/\/[^\s]+)/g;
+                return text.split(urlRegex).map((part, i) => 
+                    urlRegex.test(part) ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-bp-pink underline break-all">{part}</a> : part
+                );
+            };
+
+            const handleCopy = (text) => {
+                navigator.clipboard.writeText(text);
+                alert('Copied!');
+            };
+
+            return (
+                <div className="space-y-8 pb-8">
+                    {/* Coupons Section */}
+                    <div className="glass-card p-5 rounded-xl border border-bp-pink/30 shadow-neon">
+                        <h3 className="text-xl font-bold text-bp-pink mb-4 font-serif flex items-center gap-2">
+                            <Icon name="ticket-alt" /> 優惠券 (Coupons)
+                        </h3>
+
+                        <div className="flex gap-2 mb-6">
+                            <input 
+                                type="text" 
+                                value={couponInput}
+                                onChange={e => setCouponInput(e.target.value)}
+                                placeholder="輸入網址或優惠碼..."
+                                className="flex-1 bg-black/50 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-bp-pink outline-none"
+                            />
+                            <button 
+                                onClick={() => { if(couponInput) { addCouponText(couponInput); setCouponInput(''); } }}
+                                className="bg-bp-brown px-4 rounded text-white text-sm hover:bg-bp-pink hover:text-black transition font-bold"
+                            >
+                                Add
+                            </button>
+                            <label className="bg-gray-800 px-3 rounded flex items-center justify-center cursor-pointer hover:bg-bp-pink hover:text-black transition text-white">
+                                <Icon name="image" />
+                                <input type="file" className="hidden" accept="image/*" onChange={addCouponImage} />
+                            </label>
+                        </div>
+
+                        <div className="space-y-4">
+                            {coupons.length === 0 && <div className="text-gray-500 text-center text-sm py-2">No coupons yet.</div>}
+                            
+                            {coupons.map((item) => (
+                                <div key={item.id} className="bg-black/40 rounded-lg p-3 flex flex-col gap-2 relative group border border-gray-800">
+                                    <button 
+                                        onClick={() => removeCoupon(item.id)} 
+                                        className="absolute top-2 right-2 text-gray-500 hover:text-red-500 p-1"
+                                    >
+                                        <Icon name="trash" />
+                                    </button>
+
+                                    {item.type === 'text' ? (
+                                        <div className="pr-6">
+                                            <div className="text-white text-sm break-all font-mono">{linkify(item.content)}</div>
+                                            <button 
+                                                onClick={() => handleCopy(item.content)} 
+                                                className="mt-2 text-[10px] bg-gray-700 px-2 py-1 rounded text-gray-300 hover:bg-white hover:text-black transition"
+                                            >
+                                                <Icon name="copy" /> Copy
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="w-full">
+                                            <img 
+                                                src={item.content} 
+                                                alt="Coupon" 
+                                                className="w-full h-32 object-cover rounded border border-gray-700 cursor-pointer hover:opacity-80 transition"
+                                                onClick={() => {
+                                                    const w = window.open("");
+                                                    w?.document.write(`<img src="${item.content}" style="width:100%"/>`);
+                                                }}
+                                            />
+                                            <div className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+                                                <Icon name="image" /> Image Coupon
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <ChecklistGroup 
+                        title="必備清單 (Essentials)" 
+                        items={essentials} 
+                        onToggle={toggleEss} 
+                        onAdd={addEss} 
+                        onRemove={removeEss} 
+                    />
+                    
+                    <ChecklistGroup 
+                        title="購物清單 (To Buy)" 
+                        items={shopping} 
+                        onToggle={toggleShop} 
+                        onAdd={addShop} 
+                        onRemove={removeShop} 
+                    />
+
+                    <div className="glass-card p-5 rounded-xl">
+                        <h3 className="text-xl font-bold text-bp-pink mb-3 font-serif">
+                            <Icon name="pen-fancy" className="mr-2" />備忘錄 (Memo)
+                        </h3>
+                        <textarea 
+                            value={memo}
+                            onChange={(e) => setMemo(e.target.value)}
+                            className="w-full bg-black/50 text-gray-300 p-3 rounded h-32 focus:border-bp-pink focus:outline-none border border-gray-700 resize-none" 
+                            placeholder="輸入文字或網址..."
+                        />
+                        <div className="mt-4 pt-4 border-t border-gray-700">
+                            <div className="text-gray-400 text-sm whitespace-pre-wrap break-words">{linkify(memo)}</div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // InfoView Component
+        const InfoView = ({ initialData }) => {
+            const usePersistentImage = (key, initial) => {
+                const [img, setImg] = useState(() => localStorage.getItem(key) || initial);
+                const upload = (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const res = reader.result;
+                            setImg(res);
+                            try { localStorage.setItem(key, res); } catch(e) { alert('Image too large'); }
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                };
+                const clear = () => {
+                    if(window.confirm('Clear image?')) {
+                        setImg(null);
+                        localStorage.removeItem(key);
+                    }
+                };
+                return { img, upload, clear };
+            };
+
+            const qr = usePersistentImage('bp_qr', initialData.qrImage);
+            const coupon = usePersistentImage('bp_coupon', initialData.couponImage);
+
+            const ImageUploader = ({ label, data, icon }) => (
+                <div className="glass-card p-4 rounded-xl flex items-center justify-between group relative overflow-hidden">
+                    <div className="flex items-center gap-4 z-10">
+                        <div className="w-12 h-12 bg-bp-dark rounded-full flex items-center justify-center text-bp-pink border border-gray-700">
+                            <Icon name={icon} className="text-xl" />
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-white">{label}</h4>
+                            <label className="text-xs text-gray-400 cursor-pointer hover:text-bp-pink transition">
+                                {data.img ? 'Click to change' : 'Click to upload'}
+                                <input type="file" className="hidden" accept="image/*" onChange={data.upload} />
+                            </label>
+                        </div>
+                    </div>
+                    
+                    {data.img && (
+                        <div className="flex items-center gap-2 z-10">
+                            <button onClick={() => {
+                                const w = window.open("");
+                                w?.document.write(`<img src="${data.img}" style="width:100%"/>`);
+                            }} className="bg-gray-800 text-white p-2 rounded-full hover:bg-bp-pink hover:text-black transition">
+                                <Icon name="eye" />
+                            </button>
+                            <button onClick={data.clear} className="bg-red-900/50 text-red-300 p-2 rounded-full hover:bg-red-600 hover:text-white transition">
+                                <Icon name="trash" />
+                            </button>
+                        </div>
+                    )}
+                    
+                    {data.img && (
+                        <div className="absolute inset-0 opacity-20 pointer-events-none">
+                            <img src={data.img} className="w-full h-full object-cover" alt="preview" />
+                        </div>
+                    )}
+                </div>
+            );
+
+            return (
+                <div className="space-y-6 pb-8">
+                    <div className="glass-card p-6 rounded-xl text-center">
+                        <h3 className="text-2xl font-serif text-white mb-2">Tokyo, Japan</h3>
+                        <a href="https://www.jma.go.jp/bosai/forecast/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-6 py-2 bg-blue-600 rounded-full text-white font-bold shadow-lg hover:bg-blue-500 transition active:scale-95">
+                            <Icon name="cloud-sun" className="mr-2" /> 查看日本氣象廳
+                        </a>
+                    </div>
+
+                    <ImageUploader label="Visit Japan Web QR" data={qr} icon="qrcode" />
+                    <ImageUploader label="優惠券 (Coupons)" data={coupon} icon="ticket-alt" />
+
+                    <div className="glass-card p-5 rounded-xl border-l-4 border-red-600">
+                        <h3 className="text-red-500 font-bold mb-3"><Icon name="triangle-exclamation" /> 緊急聯絡</h3>
+                        <ul className="text-gray-300 space-y-2 text-sm">
+                            <li>警察: <a href="tel:110" className="text-white font-bold underline">110</a></li>
+                            <li>救護車/火警: <a href="tel:119" className="text-white font-bold underline">119</a></li>
+                            <li>外交部緊急聯絡: +81-80-1009-7179</li>
+                        </ul>
+                    </div>
+                    
+                    <div className="text-center mt-8 opacity-30">
+                        <p className="text-xs">Enjoy your trip!</p>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- APP COMPONENT ---
+        const DEFAULT_COVER = "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?q=80&w=1000&auto=format&fit=crop";
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('PLAN');
+            const [coverImage, setCoverImage] = useState(DEFAULT_COVER);
+
+            useEffect(() => {
+                const savedCover = localStorage.getItem('bpCover');
+                if (savedCover) setCoverImage(savedCover);
+            }, []);
+
+            const handleCoverUpload = (e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const result = reader.result;
+                        setCoverImage(result);
+                        localStorage.setItem('bpCover', result);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const usePersistentList = (key, initial) => {
+                const [list, setList] = useState(() => {
+                    try {
+                        const saved = localStorage.getItem(key);
+                        return saved ? JSON.parse(saved) : initial;
+                    } catch { return initial; }
+                });
+
+                const addItem = (item) => {
+                    const newList = [...list, item];
+                    setList(newList);
+                    localStorage.setItem(key, JSON.stringify(newList));
+                };
+
+                const deleteItem = (id) => {
+                    const newList = list.filter(i => i.id !== id);
+                    setList(newList);
+                    localStorage.setItem(key, JSON.stringify(newList));
+                };
+
+                return { list, addItem, deleteItem };
+            };
+
+            const { list: foodList, addItem: addFood, deleteItem: deleteFood } = usePersistentList('bp_food', INITIAL_DATA.food);
+            const { list: playList, addItem: addPlay, deleteItem: deletePlay } = usePersistentList('bp_play', INITIAL_DATA.play);
+            const { list: shopList, addItem: addShop, deleteItem: deleteShop } = usePersistentList('bp_shop', INITIAL_DATA.shop);
+
+            const renderContent = () => {
+                switch(activeTab) {
+                    case 'PLAN': return <PlanView itinerary={INITIAL_DATA.itinerary} onSwitchTab={setActiveTab} />;
+                    case 'FOOD': return <CardList title="Food Guide" items={foodList} onAdd={addFood} onDelete={deleteFood} />;
+                    case 'PLAY': return <CardList title="Attractions" items={playList} onAdd={addPlay} onDelete={deletePlay} />;
+                    case 'SHOP': return <CardList title="Shopping Spots" items={shopList} onAdd={addShop} onDelete={deleteShop} />;
+                    case 'LISTS': return <ListsView initialData={INITIAL_DATA.lists} />;
+                    case 'INFO': return <InfoView initialData={INITIAL_DATA.info} />;
+                    default: return <PlanView itinerary={INITIAL_DATA.itinerary} onSwitchTab={setActiveTab} />;
+                }
+            };
+
+            const tabs = [
+                { id: 'PLAN', icon: 'calendar-alt', label: 'PLAN' },
+                { id: 'FOOD', icon: 'utensils', label: 'FOOD' },
+                { id: 'PLAY', icon: 'map-marked-alt', label: 'PLAY' },
+                { id: 'SHOP', icon: 'shopping-bag', label: 'SHOP' },
+                { id: 'LISTS', icon: 'check-double', label: 'LISTS' },
+                { id: 'INFO', icon: 'info-circle', label: 'INFO' }
+            ];
+
+            return (
+                <div className="min-h-screen bg-bp-black text-white relative pb-20 font-sans">
+                    {/* Header */}
+                    <header className="relative w-full h-72 overflow-hidden rounded-b-3xl shadow-neon z-0">
+                        <img src={coverImage} className="w-full h-full object-cover opacity-80 transition-all duration-500" alt="Cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-bp-black via-transparent to-transparent"></div>
+                        
+                        <div className="absolute bottom-6 left-6">
+                            <h1 className="text-4xl font-black italic tracking-widest bg-clip-text text-transparent bg-gradient-to-r from-bp-pink to-white drop-shadow-lg font-serif">
+                                BLACKPINK<br/>TOKYO 2025
+                            </h1>
+                            <p className="text-bp-pink text-sm mt-1 tracking-widest uppercase font-bold">
+                                <i className="fa-solid fa-heart animate-pulse mr-2"></i> Born Pink World Tour
+                            </p>
+                        </div>
+
+                        <label className="absolute top-4 right-4 bg-black/60 p-2 rounded-full text-bp-pink cursor-pointer backdrop-blur-sm border border-bp-pink/30 hover:bg-bp-pink hover:text-black transition">
+                            <Icon name="camera" />
+                            <input type="file" className="hidden" accept="image/*" onChange={handleCoverUpload} />
+                        </label>
+                    </header>
+
+                    {/* Main Content */}
+                    <main className="px-4 mt-6 min-h-[50vh] animate-fadeIn">
+                        {renderContent()}
+                    </main>
+
+                    {/* Bottom Navigation */}
+                    <nav className="fixed bottom-0 left-0 w-full bg-[#111111]/95 backdrop-blur-md border-t border-gray-800 z-50 pb-safe">
+                        <div className="flex justify-around items-center h-16">
+                            {tabs.map(tab => (
+                                <button 
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex flex-col items-center justify-center w-full h-full transition-all duration-300 ${activeTab === tab.id ? 'text-bp-pink' : 'text-gray-500'}`}
+                                >
+                                    <i className={`fa-solid fa-${tab.icon} text-lg mb-1 ${activeTab === tab.id ? 'transform scale-110 drop-shadow-[0_0_8px_rgba(244,167,187,0.6)]' : ''}`}></i>
+                                    <span className="text-[10px] tracking-wide font-bold">{tab.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </nav>
+                </div>
+            );
+        };
+
+        // --- RENDER ---
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+    </script>
 </body>
 </html>
